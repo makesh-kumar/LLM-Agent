@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-
+import { config } from "./config.js"; // Import the common config
 // Initialize Gemini
-const genAI = new GoogleGenerativeAI("AIzaSyBoAM3KdBRL1y4965MxQiu4t0sqU4rhRwU");
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const genAI = new GoogleGenerativeAI(config.apiKey);
+const model = genAI.getGenerativeModel({ model: config.model });
 
 /**
  * @param {string} userInput - What the human typed

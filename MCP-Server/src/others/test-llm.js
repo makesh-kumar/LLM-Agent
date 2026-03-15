@@ -1,10 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { config } from "../config.js";
 
 // Replace with your actual key
-const API_KEY = "AIzaSyBoAM3KdBRL1y4965MxQiu4t0sqU4rhRwU"; 
+const API_KEY = config.apiKey; 
 
 // We will try the most stable 2026 free model first
-const MODEL_NAME = "gemini-2.5-flash"; 
+const MODEL_NAME = config.model; 
 
 async function testConnection() {
   console.log(`Testing model: ${MODEL_NAME}...`);
