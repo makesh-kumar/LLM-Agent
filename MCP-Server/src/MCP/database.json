@@ -1,0 +1,16 @@
+{
+  "users": [
+    { "id": "u1", "name": "Alice Smith", "email": "alice@example.com", "city": "London" },
+    { "id": "u2", "name": "Bob Jones", "email": "bob@example.com", "city": "Paris" }
+  ],
+  "orders": [
+    { "id": "o1", "userId": "u1", "product": "Laptop", "amount": 1200 },
+    { "id": "o2", "userId": "u1", "product": "Mouse", "amount": 50 },
+    { "id": "o3", "userId": "u2", "product": "Phone", "amount": 800 }
+  ],
+  "payments": [
+    { "id": "p1", "orderId": "o1", "status": "Completed", "method": "Credit Card" },
+    { "id": "p2", "orderId": "o2", "status": "Pending", "method": "PayPal" },
+    { "id": "p3", "orderId": "o3", "status": "Completed", "method": "Stripe" }
+  ]
+}

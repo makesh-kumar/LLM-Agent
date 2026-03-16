@@ -1,110 +1,76 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+// server.js
+import express from 'express';
+import { mcpManager } from './MCP/mcp-manager.js'; // Import the bridge
+import cors from 'cors';
 
-// Import the expanded dataset
-// Note: Ensure your data/db.js uses 'export const' for all these arrays
-import { users, orders, tickets, products } from "./data/db.js";
+const app = express();
+app.use(cors())
+app.use(express.json());
+// Get the current connection status and the path being used
+app.get('/api/mcp/status', (req, res) => {
+    const status = mcpManager.getStatus();
+    res.json(status);
+});
+// ROUTE: The UI calls this to "Turn On" the MCP integration
+app.post('/api/mcp/connect', async (req, res) => {
+    const { command, args } = req.body;
 
-const server = new Server(
-  { name: "enterprise-data-server", version: "1.0.0" },
-  { capabilities: { tools: {} } }
-);
-
-/**
- * 1. Define the Toolset
- * This tells the AI what "capabilities" it has.
- */
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [
-    {
-      name: "get_all_users",
-      description: "Returns a complete list of all users in the system with their IDs, names, and roles.",
-      inputSchema: { type: "object", properties: {} }
-    },
-    {
-      name: "get_user_info",
-      description: "Get detailed profile information for a specific user ID, including location and email.",
-      inputSchema: {
-        type: "object",
-        properties: { userId: { type: "string" } },
-        required: ["userId"]
-      }
-    },
-    {
-      name: "get_user_orders",
-      description: "Retrieve all purchase history for a specific user. Includes SKUs, quantity, and dates.",
-      inputSchema: {
-        type: "object",
-        properties: { userId: { type: "string" } },
-        required: ["userId"]
-      }
-    },
-    {
-      name: "get_user_tickets",
-      description: "List all support tickets (complaints/issues) filed by a user. Shows status and priority.",
-      inputSchema: {
-        type: "object",
-        properties: { userId: { type: "string" } },
-        required: ["userId"]
-      }
-    },
-    {
-      name: "get_product_catalog",
-      description: "Returns the full product list, including prices, categories, and real-time stock levels.",
-      inputSchema: { type: "object", properties: {} }
+    // Safety check: ensure we have the minimum requirements to spawn a process
+    if (!command || !args || !Array.isArray(args)) {
+        return res.status(400).json({ 
+            error: "Payload must include 'command' (string) and 'args' (array of strings)." 
+        });
     }
-  ]
-}));
 
-/**
- * 2. Implement the Tool Logic
- * This handles the actual data retrieval when the AI calls a tool.
- */
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
-  try {
-    switch (name) {
-      case "get_all_users":
-        return { content: [{ type: "text", text: JSON.stringify(users, null, 2) }] };
-
-      case "get_user_info":
-        const user = users.find(u => u.id === args.userId);
-        return { 
-          content: [{ type: "text", text: user ? JSON.stringify(user) : `Error: User ${args.userId} not found.` }] 
-        };
-
-      case "get_user_orders":
-        const userOrders = orders.filter(o => o.userId === args.userId);
-        // Link with product names for better AI context
-        const enrichedOrders = userOrders.map(order => ({
-          ...order,
-          productName: products.find(p => p.sku === order.sku)?.name || "Unknown Product"
-        }));
-        return { content: [{ type: "text", text: JSON.stringify(enrichedOrders) }] };
-
-      case "get_user_tickets":
-        const userTickets = tickets.filter(t => t.userId === args.userId);
-        return { content: [{ type: "text", text: JSON.stringify(userTickets) }] };
-
-      case "get_product_catalog":
-        return { content: [{ type: "text", text: JSON.stringify(products, null, 2) }] };
-
-      default:
-        throw new Error(`Tool ${name} not implemented.`);
+    try {
+        // Log exactly what we are about to try running
+        console.log(`[API]: Connecting to MCP via: ${command} ${args.join(' ')}`);
+        
+        const result = await mcpManager.connect(command, args);
+        res.json(result);
+    } catch (err) {
+        console.error("[API Error]:", err.message);
+        res.status(500).json({ error: err.message });
     }
-  } catch (error) {
-    return {
-      content: [{ type: "text", text: `Runtime Error: ${error.message}` }],
-      isError: true
-    };
-  }
 });
 
-/**
- * 3. Start the Server
- */
-const transport = new StdioServerTransport();
-await server.connect(transport);
-console.error("MCP Data Server running on stdio");
+// server.js
+
+app.post('/api/mcp/disconnect', async (req, res) => {
+    try {
+        await mcpManager.disconnect();
+        res.json({ 
+            status: "success", 
+            message: "MCP Server process terminated successfully" 
+        });
+    } catch (err) {
+        console.error("Disconnect Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ROUTE: When the LLM needs to use a tool, it uses this internal logic
+app.get('/api/mcp/tools', async (req, res) => {
+    try {
+        const tools = await mcpManager.getTools();
+        res.json(tools);
+    } catch (err) {
+        res.status(400).json({ error: "MCP not connected yet" });
+    }
+});
+
+
+app.post('/api/mcp/tools/call', async (req, res) => {
+    const { name, arguments: toolArgs } = req.body;
+    try {
+        const result = await mcpManager.client.callTool({
+            name: name,
+            arguments: toolArgs
+        });
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.listen(3000, () => console.log("Main Server running on :3000"));
